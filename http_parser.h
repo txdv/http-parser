@@ -110,7 +110,7 @@ enum http_parser_type { HTTP_REQUEST, HTTP_RESPONSE, HTTP_BOTH };
 struct http_parser {
   /** PRIVATE **/
   unsigned char type : 2;
-  unsigned char flags : 6;
+  unsigned char flags : 8;
   unsigned char state;
   unsigned char header_state;
   unsigned char index;

@@ -328,6 +328,8 @@ enum flags
   , F_TRAILING              = 1 << 3
   , F_UPGRADE               = 1 << 4
   , F_SKIPBODY              = 1 << 5
+  , F_CONTENT_LENGTH        = 1 << 6
+  , F_TRANSFER_ENCODING     = 1 << 7
   };
 
 
@@ -1237,6 +1239,7 @@ size_t http_parser_execute (http_parser *parser,
             break;
 
           case h_transfer_encoding:
+            parser->flags |= F_TRANSFER_ENCODING;
             /* looking for 'Transfer-Encoding: chunked' */
             if ('c' == c) {
               header_state = h_matching_transfer_encoding_chunked;
@@ -1248,6 +1251,7 @@ size_t http_parser_execute (http_parser *parser,
           case h_content_length:
             if (ch < '0' || ch > '9') goto error;
             parser->content_length = ch - '0';
+            parser->flags |= F_CONTENT_LENGTH;
             break;
 
           case h_connection:
@@ -1431,7 +1435,7 @@ size_t http_parser_execute (http_parser *parser,
             /* Content-Length header given and non-zero */
             state = s_body_identity;
           } else {
-            if (parser->type == HTTP_REQUEST || http_should_keep_alive(parser)) {
+            if (parser->type == HTTP_REQUEST) {
               /* Assume content-length 0 - read the next */
               CALLBACK2(message_complete);
               state = NEW_MESSAGE();
@@ -1591,9 +1595,21 @@ http_should_keep_alive (http_parser *parser)
     /* HTTP/1.1 */
     if (parser->flags & F_CONNECTION_CLOSE) {
       return 0;
-    } else {
-      return 1;
     }
+
+    /* HTTP/1.1 responses that don't have Content-Length or Transfer-Coding
+     * should end on EOF.
+     *
+     * See:
+     * http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4 (#5)
+     * http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-12#section-3.3 (#6)
+     */
+    if (parser->type == HTTP_RESPONSE &&
+        0 == (parser->flags & (F_CONTENT_LENGTH | F_TRANSFER_ENCODING))) {
+      return 0;
+    }
+
+    return 1;
   } else {
     /* HTTP/1.0 or earlier */
     if (parser->flags & F_CONNECTION_KEEP_ALIVE) {
