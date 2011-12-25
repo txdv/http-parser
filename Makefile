@@ -34,6 +34,9 @@ test.o: test.c http_parser.h Makefile
 http_parser.o: http_parser.c http_parser.h Makefile
 	$(CC) $(CPPFLAGS_FAST) $(CFLAGS_FAST) -c http_parser.c
 
+libhttp_parser.so: http_parser.o Makefile
+	$(CC) -shared -o libhttp_parser.so $(CPPFLAGS_FAST) $(CFLAGS_FAST) http_parser.o
+
 test-run-timed: test_fast
 	while(true) do time ./test_fast > /dev/null; done
 
